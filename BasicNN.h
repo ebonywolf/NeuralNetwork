@@ -9,7 +9,7 @@
 
 using Matrix = arma::Mat<double>;
 using Vetor = std::vector<double>;
-#define Precision 100000.0
+#define Precision 1000000.0
 #define E 2.718281828459045
 namespace wag{
     
@@ -51,11 +51,8 @@ public:
     
     friend
     std::ostream& operator<<(std::ostream& out, const BasicNN& nn){
-        std::cout << "Printing" << std::endl;
-        int size=nn.params.size();
-        std::cout << "Size:"<< size << std::endl;
-        std::cout << "Id:"<<nn.id<< std::endl;
-      
+         int size=nn.params.size();
+
         out.write( (char *)&size, sizeof(int) );
         for (int i =0; i < size ; i++){
             int alce = nn.params[i];
@@ -93,6 +90,9 @@ public:
     }
     
     inline double activation(double x)const{
+     
+        if(x>5)return x;
+        if(x<-5)return 0.000001;
         return std::log(1.0 + std::exp(x) );//1.0/(1.0+exp(-x));
     }
     
@@ -183,7 +183,6 @@ protected:
         
         Matrix output= layers[0]*input ;
         output = output+ bias[0];
- 
         for (int i =1; i < layers.size() ; i++){
             for (auto& x : output ){
                x = activation(x); 
@@ -203,7 +202,6 @@ protected:
         return result;
     }
     
-    
 public:
     std::vector<int> params;
     std::vector<Matrix> layers;
@@ -212,14 +210,11 @@ public:
 };
 
 struct BasicNNenv: public Environment,public ProgressIO{
-    
+ 
     using FitnessFunction = std::function< double (std::function< Vetor (const Vetor&)> ) >;
-     
-    
-    BasicNNenv( std::vector<int> nnParams, FitnessFunction func )
-        :func(func),nn_params(nnParams)
-    {
         
+    BasicNNenv( std::vector<int> nnParams, FitnessFunction func )
+        :func(func),nn_params(nnParams) {      
     }
     
     virtual Units createUnits(int number){
@@ -237,14 +232,11 @@ struct BasicNNenv: public Environment,public ProgressIO{
 
     virtual void runUnits( Units& units){
         using namespace std;
-        for (auto& x : units ){
+  
+        for (auto& x : units ){///run Units
             auto nn  = std::dynamic_pointer_cast<BasicNN>(x);
-            
             nn->toDna();
-            std::cout << "Running:"<<nn->id << std::endl;
-            
             int fit;
-            
             try{
               fit =func( *nn );
             }catch(NNException& e){
@@ -258,8 +250,6 @@ struct BasicNNenv: public Environment,public ProgressIO{
                     std::cout << "fooo" << std::endl;
                 } 
             }
-            
-            
             x->fitness = fit;   
         }
     }
@@ -300,6 +290,14 @@ private:
     friend Runner;
 };
 
+template <class T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& t ){
+    for (int i =0; i < t.size() ; i++){
+       std::cout << i<<":"<<t[i] << std::endl;
+    }
+    return os;
+   
+}
 
 struct NNTrainer {
     
@@ -307,11 +305,11 @@ struct NNTrainer {
     BasicNN trainBasicFunction( F func ){
         using namespace std;
       
-        Pontos pts = Plotter::generatePoints(-5,5,func, 50);
+        Pontos pts = Plotter::generatePoints (-10,10,func, 150);
         
         auto lamd = [&pts]( std::function< Vetor (Vetor)> nn){
-            double precision=15.0;
-            double maxFit=500;
+            double precision=10.0;
+            double maxFit=5000;
             double sum=0;
             double max = maxFit/pts.size();
             
@@ -342,13 +340,20 @@ struct NNTrainer {
         auto progressFunc = [this](Progress p ){
           
             auto unitmap = evoIO->readPopulation(p.generations);
-            
+      
             auto orgptr = unitmap[p.highestId];
             auto nnptr  = (BasicNN*)orgptr.get();//;std::dynamic_pointer_cast<BasicNN>(orgptr);
+            std::cout << "========Fitness======: "<<p.highestFitness << std::endl;
+            for (auto x : nnptr->layers ){
+                std::cout << x << std::endl;
+            }
+            std::cout << "===BIAS===" << std::endl;
+             for (auto x : nnptr->bias ){
+                std::cout << x << std::endl;
+            }
        
-            Pontos pts = Plotter::generatePoints(-12,12, *nnptr, 40);
-            
-         
+            Pontos pts = Plotter::generatePoints(-12,12, *nnptr, 100);
+                  
             plotter.addPontos("BasicNN",pts);
             plotter.plot();
             
@@ -357,17 +362,17 @@ struct NNTrainer {
         
         plotter.addPontos("Function",pts);
         
-        BasicNNenv env({1,3,3,3,3,3,3,3,1},lamd);
+        BasicNNenv env({1,2,2,1},lamd);
         env.addProgressListener(progressFunc);
         evoIO = env.getIO();
         
-        Permutations perm(0.02 ,0.03, 100000 );
+        Permutations perm(0.02 ,0.01, Precision*30 );
         getPermutation(&perm);
 
         RunnerConfig config;
-        config.fitnessTarget=495;
+        config.fitnessTarget=4995;
         config.generations=10000;
-        config.population=100;
+        config.population=200;
         
         Runner runner(config,env, ProgressIOptr(&env) );
         Progress p= runner.startSimulation();
