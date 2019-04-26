@@ -1,11 +1,10 @@
 
-#include "Factory.h"
+//#include "Factory.h"
 #include "NeuralNetwork.h"
 #include <stdlib.h>
 #include <time.h>
 #include <vector>
 #include <iostream>
-#include <ProjGaia/SFML/Renderer.h>
 #include "Functions.h"
 #include "GeneticNN.h"
 using namespace std;
