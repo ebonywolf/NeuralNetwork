@@ -6,13 +6,14 @@
 #include "Neuron.h"
 #include <cmath>
 #include <iostream>
-#define E 2.718281828459045
+#define M_E 2.718281828459045
+
 class Functions
 {
     public:
         float result(float a ){
            // std::cout<<"value:"<< a <<std::endl;
-            return (1/(1+pow(E, -a)));
+            return (1/(1+pow(M_E, -a)));
         }
          void basicTrain(NeuralNetwork &n, std::list<std::vector<float>>){
             std::list<Neuron::Connection*> con;

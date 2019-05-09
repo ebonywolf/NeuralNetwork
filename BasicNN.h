@@ -311,7 +311,7 @@ struct NNTrainer {
 			double max = maxFit/pts.size();
 
 			for (const auto& x : pts ) {
-				vector<double> val= {x.first};
+				std::vector<double> val= {x.first};
 				auto vec = nn(val);
 				double y = vec[0];
 				if( y!=y ) {
@@ -333,7 +333,7 @@ struct NNTrainer {
 			double maxFit=5000;
 			double sum=2;
 			for (const auto& x : pts ) {
-				vector<double> val= {x.first};
+				std::vector<double> val= {x.first};
 				auto vec = nn(val);
 				double y = vec[0];
 				if( y!=y ) {

@@ -37,8 +37,8 @@ struct FFNN : public Organism, public NeuralNetwork {
 		}
 		output.swap ( _neurons[ _neurons.size() - 1 ] );
 
-		auto setDna = [] ( vector<Neuronptr>& neuron, vector<int>& geneChain ) {
-			geneChain = vector<int>();
+		auto setDna = [] ( vector<Neuronptr>& neuron, wag::GeneChain& geneChain ) {
+			geneChain = wag::GeneChain();
 			for ( int i = 0; i < neuron.size(); i++ ) {
 				for ( auto& x : neuron[i]->exits ) {
 					geneChain.push_back ( x.str * PRECISION )  ;
@@ -50,7 +50,7 @@ struct FFNN : public Organism, public NeuralNetwork {
 		setDna ( input, dna[0] );
 		setDna ( neurons, dna[1] );
 
-		dna[2] =  vector<int>();
+		dna[2] =  wag::GeneChain();
 		for ( auto& x : threshold->exits ) {
 			dna[2].push_back ( x.str * PRECISION )  ;
 		}
@@ -59,7 +59,7 @@ struct FFNN : public Organism, public NeuralNetwork {
 	}
 	void updateFromDna()
 	{
-		auto getDna = [] ( vector<Neuronptr>& neuron, vector<int>& geneChain ) {
+		auto getDna = [] ( vector<Neuronptr>& neuron, wag::GeneChain& geneChain ) {
 			int j = 0;
 			for ( int i = 0; i < neuron.size(); i++ ) {
 				for ( auto& x : neuron[i]->exits ) {
@@ -165,10 +165,7 @@ struct FileLearning : public Environment {
 		virtual Units createUnits ( int number )
 		{
 
-			for ( int i = 0; i < number; i ++ ) {
-                FFNN()
 
-			}
 
 		}
 

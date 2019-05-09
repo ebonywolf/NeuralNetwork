@@ -8,10 +8,6 @@
 #include "Functions.h"
 #include "GeneticNN.h"
 using namespace std;
-using namespace pg;
-
-
-
 
 int main() {
 
