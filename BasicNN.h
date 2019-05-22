@@ -4,8 +4,12 @@
 #include <cmath>
 #include <armadillo>
 #include <Organism.h>
+
 using Matrix = arma::Mat<double>;
 using Vetor = std::vector<double>;
+
+#define IS_NAN(X) if(isnan(X))throw("Explosion");
+
 #define Precision 10000000.0
 #define M_E 2.718281828459045
 #define M_PI 3.14159265359
@@ -83,19 +87,48 @@ public:
 struct PropagationTrainer{
     int epoch;
     BasicNN* nn;
+    double minVal =0.0003;
     std::vector< std::vector<double> >neuronValues;
 
+    Vetor inputValue;
+    std::vector< Vetor >allDeltas;
+    std::vector<Vetor> biasDelta;
+
     PropagationTrainer(BasicNN* nn):nn(nn){
+        allDeltas.resize(nn->layers.size() );
+        biasDelta.resize(nn->bias.size());
     }
-    int getOutputNum()const {
-        nn->params.back();
-    }
+    bool lastLayer(int n);
+
     void train(Pontos p){
     	for (auto& pt: p) {
 			train(pt.first, pt.second);
 		}
     }
 
+    void  calc_new_weights(int indice, double eta){
+        Vetor prev_outputs;
+        Vetor& delta = allDeltas[indice];
+        if( indice==0 ){
+            prev_outputs = inputValue;
+        }else{
+            prev_outputs = neuronValues[indice-1];
+        }
+        auto& weights = nn->layers[indice];
+
+        for(int i=0;i<weights.n_rows;i++){
+            for(int j=0;j<weights.n_cols;j++){
+                double val = eta * delta[j] * prev_outputs[i];
+                //if(val<minVal)val*=5000;
+                weights(i,j)+= val;
+            }
+                if(indice<nn->bias.size()){
+                    auto& bias = nn->bias[indice];
+                    double val = eta * biasDelta[indice][i] * prev_outputs[i];
+                    bias(i,0)+=val;
+                }
+        }
+    }
     void train(double input, double output){
     	Vetor vi = {input};
     	Vetor vo = {output};
@@ -109,6 +142,40 @@ struct PropagationTrainer{
         }
     }
 
+std::vector<double> calcDelta(int indice, std::vector<double>& targets){//aka layer and y answer
+    std::vector<double> deltas;
+
+    auto get_nb_neurons=[this, indice](){
+        return nn->params[indice+1];
+    };
+    auto get_output=[this,indice](int i){
+        return this->neuronValues[indice][i];
+    };
+    double deltas_sum = 0;
+
+    if( indice == nn->layers.size()-1 ){
+        for(int i=0; i< get_nb_neurons() ; i++){
+            double alce= (targets[i]-neuronValues[indice][i]);
+            alce*=alce;
+            deltas.push_back(alce);
+        }
+
+    }else{
+        Matrix& next_weights = nn->layers[indice+1];
+        std::vector<double> next_deltas = allDeltas[indice+1];
+
+        for(int i=0; i<get_nb_neurons(); i++){
+
+            for(int j=0; j<next_weights.n_rows; j++){
+                deltas_sum += next_weights(j,i)* next_deltas[j];
+            }
+            double alce = deltas_sum * get_output(i)*(1- get_output(i));
+            deltas.push_back(alce);
+            deltas_sum = 0;
+        }
+    }
+    return deltas;
+}
     std::vector<double> updateNeuronValues(const std::vector<double>& _in){
         neuronValues.resize( nn->layers.size()+1);
         using namespace std;
@@ -120,21 +187,26 @@ struct PropagationTrainer{
                 throw runtime_error(ss.str());
             }
             Matrix input = Matrix(_in);
-            updateLayer(input,0);
 
             Matrix output = layers[0] * input;
             output = output + bias[0];
+
+            inputValue.resize(output.n_rows);
+            for (int i = 0; i < output.n_rows; i++) {
+                inputValue[i]= output(i,0);
+             }
+
             for (int i = 1; i < layers.size(); i++) {
                 for (auto& x : output) {
                     x = nn->activation(x);
                 }
-                updateLayer(output,i);
+                updateLayer(output,i-1);
                 output = layers[i] * output;
                 if (i < bias.size()) {
                     output += bias[i];
                 }
             }
-            updateLayer( output ,layers.size() );
+            updateLayer( output ,layers.size()-1 );
             if (!output.is_vec())
                 throw std::runtime_error("non vector output");
 
@@ -149,65 +221,35 @@ struct PropagationTrainer{
         updateNeuronValues(input);
         auto& layers = nn->layers;
         auto& bias = nn->bias;
-
-        double epsilon=0.03;
-        double change_rate = 2.0*epsilon  ;
-
-        Vetor realAnswer = output;
-
-
-//        std::cout<< "val"<<neuronValues.size()<<" "<< layers.size() << std::endl;
-
-        for (int layer = layers.size()-1; layer >= 0; layer--) {
-                int outNum = neuronValues[layer+1].size();
-                int neuronNum = neuronValues[layer].size();
-
-                if(outNum!=realAnswer.size()){
-                	std::cout<< "Out:"<<outNum<<" "<<realAnswer.size() << std::endl;
-                	throw std::runtime_error("Wrong backpropagation");
-                }
-                Vetor nextAnswer(neuronNum);
-               // nextAnswer.resize(neuronNum);
-                for (int neuron = 0;  neuron< neuronNum; neuron++) {
-                	double neuronVal = neuronValues[layer][neuron];
-
-                	for (int nextNeuron = 0; nextNeuron< outNum; nextNeuron++) {
-                		double realAns = realAnswer[nextNeuron];
-                        double answerVal = neuronValues[layer+1][nextNeuron];
-                        double cost = answerVal - realAnswer[nextNeuron];
-                        cost*=cost;
-
-                        double answerCost = 2 * (answerVal- realAns);
-
-                        double derivative  = 0;
-                        if(layer == layers.size()-1){
-                        	std::cout<< "Last" << std::endl;
-                        	derivative=nn->layers[layer](nextNeuron, neuron);
-                        }else{
-                        	std::cout<< "NotLast" << std::endl;
-                        	derivative=(1 - answerVal) * answerVal;
-                        }
-
-                        double previousAnswer = neuronVal;
-
-                        double shift = answerCost * derivative * previousAnswer ;
-                        std::cout<< "nn:"<<answerVal<<" "<<realAns << " "<<cost<<std::endl;
-
-                        std::cout<< "Shift:"<<shift<<" "<<answerCost<< " "<<derivative<< " "<<previousAnswer << std::endl;
-
-                        double val = nn->layers[layer](nextNeuron, neuron);
-                        nn->layers[layer](nextNeuron, neuron) = val + shift*change_rate;
-
-                      //  weightShifts[neuron]+=shift;
-                        nextAnswer[neuron]+=cost;
-                      //  double error = answerVal  -
-                    }
-                	nextAnswer[neuron]/=(double)outNum;
-                	nextAnswer[neuron] = neuronValues[layer][neuron]+ nextAnswer[neuron];
-                }
-                realAnswer = std::move(nextAnswer);
-           }
+        double epsilon=0.003;
+        for(int indice = nn->layers.size()-1; indice >=0 ; indice--){
+            allDeltas[indice]= calcDelta(indice, output);
+          //  calcBiasDelta(indice,allDeltas[indice])
+         }
+        for (int i = 0; i < nn->bias.size(); i++) {
+            calcBiasDelta(i);
+        }
+        for(int indice = nn->layers.size()-1; indice >=0 ; indice--){
+            allDeltas[indice]= calcDelta(indice, output);
+          //  calcBiasDelta(indice,allDeltas[indice])
+            calc_new_weights(indice, epsilon);
+         }
     }
+    void calcBiasDelta(int indice){
+        auto get_nb_neurons=[this, indice](){
+            return nn->params[indice+1];
+        };
+        Vetor delta;
+        delta = allDeltas[indice+1];
+        double deltas_sum = 0;
+        auto& mat= nn->bias[indice] ;
+        biasDelta[indice].resize(get_nb_neurons());
+        for(int i=0; i<get_nb_neurons(); i++){
+            double alce = delta[i];
+            biasDelta[indice][i] = alce * nn->bias[indice](i,0);
+        }
+    }
+
 private:
     const std::vector<int> layers;
 
