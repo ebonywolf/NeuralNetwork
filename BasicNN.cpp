@@ -31,7 +31,7 @@ BasicNN::~BasicNN() {
 
 inline double BasicNN::activation(double x) const {
 
-	//return (1.0/(1.0+exp(-x)));
+	return (1.0/(1.0+exp(-x)));
 
 	//x = std::tanh(x) * (PI/2)*.95;
 	//return std::tan(x);
@@ -129,11 +129,10 @@ std::vector<double> BasicNN::getOutput(const std::vector<double>& _in) const {
 	Matrix output = layers[0] * input;
 	output = output + bias[0];
 	for (int i = 1; i < layers.size(); i++) {
-		if ( i != layers.size() - 1) {
-			for (auto& x : output) {
-				x = activation(x);
-			}
-		}
+        for (auto& x : output) {
+            x = activation(x);
+        }
+
 		output = layers[i] * output;
 		if (i < bias.size()) {
 			output += bias[i];
