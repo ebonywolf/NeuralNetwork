@@ -189,7 +189,7 @@ struct NNTrainer {
 
         RunnerConfig config;
         config.fitnessTarget = 4995;
-        config.generations = 500;
+        config.generations = 1500;
         config.population = 80;
         auto envPtr = ProgressIOptr(&env);
         {

@@ -14,6 +14,8 @@ BasicNN::BasicNN(const std::vector<int>& sizes) :
 			bias.emplace(bias.end(), arma::randu(sizes[i], 1));
 		}
 	}
+	bias.emplace(bias.end(), arma::randu(sizes.back(), 1));
+
 	for (auto& layer : layers) {
 		for (auto& x : layer) {
 			x = (x * 5) - 2.5;
@@ -129,14 +131,12 @@ std::vector<double> BasicNN::getOutput(const std::vector<double>& _in) const {
 	Matrix output = layers[0] * input;
 	output = output + bias[0];
 	for (int i = 1; i < layers.size(); i++) {
-        for (auto& x : output) {
-            x = activation(x);
-        }
-
-		output = layers[i] * output;
-		if (i < bias.size()) {
-			output += bias[i];
+		for (auto& x : output) {
+			x = activation(x);
 		}
+		output = layers[i] * output;
+		if(i<bias.size())
+			output += bias[i];
 	}
 	if (!output.is_vec())
 		throw std::runtime_error("non vector output");
