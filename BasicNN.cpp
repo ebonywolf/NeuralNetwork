@@ -14,7 +14,7 @@ BasicNN::BasicNN(const std::vector<int>& sizes) :
 			bias.emplace(bias.end(), arma::randu(sizes[i], 1));
 		}
 	}
-	bias.emplace(bias.end(), arma::randu(sizes.back(), 1));
+	//bias.emplace(bias.end(), arma::randu(sizes.back(), 1));
 
 	for (auto& layer : layers) {
 		for (auto& x : layer) {

@@ -94,14 +94,7 @@ private:
     friend Runner;
 };
 
-template<class T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& t) {
-    for (int i = 0; i < t.size(); i++) {
-        std::cout << i << ":" << t[i] << std::endl;
-    }
-    return os;
 
-}
 
 struct NNTrainer {
     std::shared_ptr<BasicNN> top;

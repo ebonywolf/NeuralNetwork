@@ -8,7 +8,7 @@
 using Matrix = arma::Mat<double>;
 using Vetor = std::vector<double>;
 
-#define IS_NAN(X) ;//throw "Explosion";
+#define IS_NAN(X)if(X!=X || std::isinf(X)) throw "Explosion";
 
 #define Precision 10000000.0
 #define M_E 2.718281828459045
@@ -91,7 +91,13 @@ std::vector<T> operator+(std::vector<T> a,const std::vector<T>& b){
 	}
 	return a;
 }
-
+template<class T>
+std::ostream& operator<<(std::ostream& os,const std::vector<T>& b){
+	for (auto& x: b) {
+		os<< x<<" " ;
+	}
+	return os;
+}
 
 struct PropagationTrainer {
 	int epoch;
@@ -104,30 +110,14 @@ struct PropagationTrainer {
 	std::vector<Vetor> allDeltas;
 	std::vector<Vetor> biasDelta;
 	void train(Pontos p) {
-		allDeltas.resize(nn->layers.size());
-		biasDelta.resize(nn->bias.size());
-		allDeltas.clear();
-		biasDelta.clear();
-
 		for (auto& pt : p) {
 			train(pt.first, pt.second);
+			double epsilon = 0.0012;
 
-			for (int indice = nn->layers.size() - 1; indice >= 0; indice--) {
-				double epsilon = 0.000008;
-				if(rand()%10000<10)
-					epsilon*=1000;
-
-				rebalanceWeights(indice, epsilon);
-			}
-			allDeltas.resize(nn->layers.size());
-			biasDelta.resize(nn->bias.size());
-			allDeltas.clear();
-			biasDelta.clear();
+			rebalanceWeights(epsilon);
 
 		}
-		for (int indice = nn->layers.size() - 1; indice >= 0; indice--) {
-			//rebalanceWeights(indice, epsilon);
-		}
+
 
 	}
 
@@ -137,46 +127,24 @@ struct PropagationTrainer {
 		biasDelta.resize(nn->bias.size());
 	}
 protected:
-	void rebalanceWeights(int indice, double eta) {
-		using namespace std;
-		Vetor prev_outputs;
-		Vetor& delta = allDeltas[indice];
-		if (indice == 0) {
-			prev_outputs = inputValue;
-		} else {
-			prev_outputs = neuronValues[indice - 1];
-		}
-		auto& weights = nn->layers[indice];
+	void rebalanceWeights(double eta) {
 
-		for (int i = 0; i < weights.n_rows; i++) {
-			for (int j = 0; j < weights.n_cols; j++) {
-				double val = eta * delta[j] * prev_outputs[i];
-
-				if(isnan(val)  ){
-					weights(i, j)=0;
-					continue;
+		for (int i = 0; i < neuronValues.size()-1; i++) {
+			auto& inputs = neuronValues[i];
+			Matrix& weights = nn->layers[i];
+			for (int n = 0; n < neuronValues[i+1].size(); n++) {
+				double delta =allDeltas[i+1][n] * eta;
+				IS_NAN(delta);
+				for (int j = 0; j < inputs.size(); j++) {
+					double var = inputs[j] *delta; ;
+					IS_NAN(var);
+					weights(n,j)+=var;
 				}
-				if( val < -maxVal)val = -maxVal;
-				if( val > maxVal)val = maxVal;
-
-				weights(i, j) += val;
+				if( i < nn->bias.size())
+					nn->bias[i][n]+=delta;
 			}
 		}
-		if (indice < nn->bias.size()) {
-			auto& bias = nn->bias[indice];
-			for (int i = 0; i < nn->bias[indice].size(); i++) {
-				double del = biasDelta[indice][i];
-				double out = neuronValues[indice][i];
-				double val = eta * del * out;
 
-				if(isnan(val)  )val=0;
-
-				if( val < -maxVal)val = -maxVal;
-				if( val > maxVal)val = maxVal;
-
-				bias(i, 0) += val;
-			}
-		}
 	}
 	void train(double input, double output) {
 		Vetor vi = { input };
@@ -192,48 +160,7 @@ protected:
 		}
 	}
 
-	std::vector<double> calcDelta(int indice, std::vector<double>& targets) { //aka layer and y answer
-		std::vector<double> deltas;
 
-		auto get_nb_neurons = [this, indice]() {
-			return nn->params[indice+1];
-		};
-		auto get_output = [this,indice](int i) {
-			return this->neuronValues[indice][i];
-		};
-		double deltas_sum = 0;
-
-		if (indice == nn->layers.size() - 1) {
-			for (int i = 0; i < get_nb_neurons(); i++) {
-				IS_NAN(targets[i]);
-				IS_NAN(neuronValues[indice][i]);
-				double alce = (targets[i] - neuronValues[indice][i])*2 ; //
-
-				IS_NAN(alce);
-				deltas.push_back(alce);
-			}
-		} else {
-			Matrix& next_weights = nn->layers[indice + 1];
-			std::vector<double> next_deltas = allDeltas[indice + 1];
-			for (int i = 0; i < get_nb_neurons(); i++) {
-
-				for (int j = 0; j < next_weights.n_rows; j++) {
-					IS_NAN(next_weights(j, i));
-					IS_NAN(next_deltas[j]);
-					auto alce = next_weights(j, i);
-					auto alce2=next_deltas[j];
-					deltas_sum += alce *alce2;
-				}
-				IS_NAN(get_output(i));
-				double derivative = get_output(i) * (1 - get_output(i));
-				double alce = deltas_sum * derivative;
-				IS_NAN(alce);
-				deltas.push_back(alce);
-				deltas_sum = 0;
-			}
-		}
-		return deltas;
-	}
 	std::vector<double> updateNeuronValues(const std::vector<double>& _in) {
 		neuronValues.resize(nn->layers.size() + 1);
 		using namespace std;
@@ -251,16 +178,16 @@ protected:
 		for (auto x : layers[0]) {
 			IS_NAN(x);
 		}
+		inputValue.resize(input.n_rows);
+		for (int i = 0; i < input.n_rows; i++) {
+			inputValue[i] = input(i, 0);
+		}
+		updateLayer(input, 0 );
 
 		Matrix output = layers[0] * input;
 
 		auto temp = output;
 		output = output + bias[0];
-
-		inputValue.resize(output.n_rows);
-		for (int i = 0; i < output.n_rows; i++) {
-			inputValue[i] = output(i, 0);
-		}
 
 		for (int i = 1; i < layers.size(); i++) {
 			//if(i!=layers.size()-1){
@@ -268,13 +195,13 @@ protected:
 				x = nn->activation(x);
 			}
 
-			updateLayer(output, i - 1);
+			updateLayer(output, i );
 			output = layers[i] * output;
 			if (i < bias.size()) {
 				output += bias[i];
 			}
 		}
-		updateLayer(output, layers.size() - 1);
+		updateLayer(output, layers.size() );
 		if (!output.is_vec())
 			throw std::runtime_error("non vector output");
 
@@ -287,15 +214,54 @@ protected:
 
 	void train(Vetor input, Vetor output) {
 		updateNeuronValues(input);
-		auto& layers = nn->layers;
-		auto& bias = nn->bias;
-		for (int indice = nn->layers.size() - 1; indice >= 0; indice--) {
-			allDeltas[indice] = calcDelta(indice, output)+allDeltas[indice];
-		}
-		for (int i = 0; i < nn->bias.size(); i++) {
-			calcBiasDelta(i);
-		}
+		allDeltas.resize(neuronValues.size());
 
+		for (int i = neuronValues.size()-1 ; i >= 1; i--) {
+			allDeltas[i].resize( neuronValues[i].size() )  ;
+			//auto& layer = nn->layers[i];
+			Vetor errors ;
+			if( i != neuronValues.size()-1 ){//middle nodes
+				for (int j = 0; j < neuronValues[i].size(); j++) {
+					double error = 0.0;
+					for (int k = 0; k < neuronValues[i+1].size(); k++) {
+						double delta = allDeltas[i+1][k];
+						IS_NAN(delta);
+						double weight = nn->layers[i-1](j,k);
+						IS_NAN(weight);
+						double err = delta*weight;
+						IS_NAN(err);
+						error += err;
+					}
+					errors.push_back(error);
+				}
+			}else{//last node
+				for (int j = 0; j < neuronValues[i].size(); j++) {
+					double val = neuronValues[i][j];
+					double error = output[j]- val;
+					IS_NAN(error);
+					errors.push_back(error);
+				}
+			}
+			for (int j = 0; j < neuronValues[i].size(); j++) {
+				double val = neuronValues[i][j];
+				double derivative = val*(1.0-val);
+				double eps=0.0000001 ;
+
+				if( abs(derivative)<0.0000001 ){
+					if(derivative>0){
+						derivative = eps;
+					}else{
+						derivative = -eps;
+					}
+				}
+
+				double result= errors[j] * derivative;
+				IS_NAN(derivative);
+				IS_NAN(result);
+
+				allDeltas[i][j] = result;
+			}
+		}
 	}
 	void calcBiasDelta(int indice) {
 
