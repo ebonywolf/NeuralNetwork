@@ -18,14 +18,15 @@ BasicNN::BasicNN(const std::vector<int>& sizes) :
 
 	for (auto& layer : layers) {
 		for (auto& x : layer) {
-			x = (x * 5) - 2.5;
+			x = (x * 30) - 15;
 		}
 	}
 	for (auto& layer : bias) {
 		for (auto& x : layer) {
-			x = (x * 5) - 2.5;
+			x = (x * 30) - 15;
 		}
 	}
+
 
 }
 BasicNN::~BasicNN() {
@@ -33,7 +34,12 @@ BasicNN::~BasicNN() {
 
 inline double BasicNN::activation(double x) const {
 
-	return (1.0/(1.0+exp(-x)));
+	double alce = (1.0/(1.0+exp(-x)));
+	if( alce < 0.05)alce=0.05;
+	if( alce > 0.95)alce = 0.95;
+	return alce;
+
+
 
 	//x = std::tanh(x) * (PI/2)*.95;
 	//return std::tan(x);
@@ -127,6 +133,9 @@ std::vector<double> BasicNN::getOutput(const std::vector<double>& _in) const {
 		throw runtime_error(ss.str());
 	}
 	Matrix input = Matrix(_in);
+	for (auto& x : input) {
+		x = activation(x);
+	}
 
 	Matrix output = layers[0] * input;
 	output = output + bias[0];

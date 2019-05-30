@@ -8,7 +8,7 @@
 using Matrix = arma::Mat<double>;
 using Vetor = std::vector<double>;
 
-#define IS_NAN(X)if(X!=X || std::isinf(X)) throw "Explosion";
+#define IS_NAN(X);
 
 #define Precision 10000000.0
 #define M_E 2.718281828459045
@@ -99,26 +99,38 @@ std::ostream& operator<<(std::ostream& os,const std::vector<T>& b){
 	return os;
 }
 
+#define RATE 10
 struct PropagationTrainer {
-	int epoch;
+	double epoch=0;
 	BasicNN* nn;
-	double minVal = 0.00007;
-	double maxVal = 20000;
+	double epVal=0.05;
+	double epsilon = 0.1;
+	double minVal = 0.000001;
+	double maxVal = 0.2;
+	int increase=0;//
+	int lastIncrease=8;
 	std::vector<std::vector<double> > neuronValues;
 
 	Vetor inputValue;
 	std::vector<Vetor> allDeltas;
 	std::vector<Vetor> biasDelta;
+
 	void train(Pontos p) {
+		epoch++;
+
+		std::cout<< "eps:"<<epsilon<<" "<<increase<<" "<< epVal<< std::endl;
+
+
+		increase=0;
 		for (auto& pt : p) {
 			train(pt.first, pt.second);
-			double epsilon = 0.0012;
+			//double epsilon = 0.01;
+			//epsilon-=(epoch *0.000005);
+			//if(epsilon<0.000001)epsilon=.000001;
 
 			rebalanceWeights(epsilon);
 
 		}
-
-
 	}
 
 	PropagationTrainer(BasicNN* nn) :
@@ -127,8 +139,12 @@ struct PropagationTrainer {
 		biasDelta.resize(nn->bias.size());
 	}
 protected:
+	void resetNN(){
+		*nn = BasicNN(nn->params);
+	}
 	void rebalanceWeights(double eta) {
-
+		static double lastsum=0;
+		double sum=0;
 		for (int i = 0; i < neuronValues.size()-1; i++) {
 			auto& inputs = neuronValues[i];
 			Matrix& weights = nn->layers[i];
@@ -137,14 +153,37 @@ protected:
 				IS_NAN(delta);
 				for (int j = 0; j < inputs.size(); j++) {
 					double var = inputs[j] *delta; ;
-					IS_NAN(var);
-					weights(n,j)+=var;
+					double alce = weights(n,j)+var;
+					if(std::isinf(alce)||std::isnan(alce) ){
+						increase=-1;
+						 alce = rand()%100000;
+						alce/=10000.0;
+						alce-=.5;
+					}
+					sum+=alce;
+					weights(n,j)=alce;
 				}
-				if( i < nn->bias.size())
-					nn->bias[i][n]+=delta;
+				if( i < nn->bias.size()){
+					double alce = nn->bias[i][n]+delta;
+					if(std::isinf(alce)||std::isnan(alce) ){
+						increase=-1;
+						 alce = rand()%100000;
+						alce/=100000.0;
+						alce-=.5;
+						sum+=alce;
+				//		std::cout<< "Infi" << std::endl;
+					}
+					nn->bias[i][n]=alce;
+				}
+
 			}
 		}
-
+		if( abs(sum-lastsum)<0.001 ){
+			increase=1;
+		}else{
+			std::cout<< "SUms:"<<sum<<" "<<lastsum << std::endl;
+		}
+		lastsum=sum;
 	}
 	void train(double input, double output) {
 		Vetor vi = { input };
@@ -161,7 +200,7 @@ protected:
 	}
 
 
-	std::vector<double> updateNeuronValues(const std::vector<double>& _in) {
+	void updateNeuronValues(const std::vector<double>& _in) {
 		neuronValues.resize(nn->layers.size() + 1);
 		using namespace std;
 		auto& layers = nn->layers;
@@ -182,6 +221,10 @@ protected:
 		for (int i = 0; i < input.n_rows; i++) {
 			inputValue[i] = input(i, 0);
 		}
+		for (auto& x : input) {
+			x = nn->activation(x);
+		}
+
 		updateLayer(input, 0 );
 
 		Matrix output = layers[0] * input;
@@ -205,11 +248,6 @@ protected:
 		if (!output.is_vec())
 			throw std::runtime_error("non vector output");
 
-		std::vector<double> result;
-		for (auto& x : output) {
-			result.emplace(result.end(), x);
-		}
-		return result;
 	}
 
 	void train(Vetor input, Vetor output) {
@@ -223,6 +261,7 @@ protected:
 			if( i != neuronValues.size()-1 ){//middle nodes
 				for (int j = 0; j < neuronValues[i].size(); j++) {
 					double error = 0.0;
+					std::cout<< "Size:"<< nn->layers[i-1].n_rows<< " "<<nn->layers[i-1].n_cols<< std::endl;
 					for (int k = 0; k < neuronValues[i+1].size(); k++) {
 						double delta = allDeltas[i+1][k];
 						IS_NAN(delta);
@@ -245,15 +284,6 @@ protected:
 			for (int j = 0; j < neuronValues[i].size(); j++) {
 				double val = neuronValues[i][j];
 				double derivative = val*(1.0-val);
-				double eps=0.0000001 ;
-
-				if( abs(derivative)<0.0000001 ){
-					if(derivative>0){
-						derivative = eps;
-					}else{
-						derivative = -eps;
-					}
-				}
 
 				double result= errors[j] * derivative;
 				IS_NAN(derivative);
